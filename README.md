@@ -19,10 +19,29 @@ Python tools for parsing and manipulating Minecraft Litematica schematic files.
 - Standard library only for core features
 - `matplotlib` for plotting (optional): `sudo apt install python3-matplotlib`
 
+## Project Structure
+
+```
+litematica-tools/
+├── nbt.py                   # NBT format parser and writer (reusable)
+├── litematica-tools.py      # Litematica schematic manipulation tools
+├── README.md
+└── schematics/              # Directory for input schematic files
+```
+
+**File Descriptions:**
+- **`nbt.py`** - Core NBT (Named Binary Tag) format handling. Can be used independently for other Minecraft NBT processing.
+  - `NBTParser` - Parses gzip-compressed NBT data
+  - `NBTWriter` - Encodes data back to NBT format
+  
+- **`litematica-tools.py`** - High-level schematic manipulation using the NBT module.
+  - Block rotation, visualization, and material swapping
+  - Command-line interface with multiple subcommands
+
 ## Commands Overview
 
 ```bash
-python3 parse_litematic.py {info,rotate,plot,swap} [options]
+python3 litematica-tools.py {info,rotate,plot,swap} [options]
 ```
 
 - **`info`** - Display detailed schematic information
@@ -36,10 +55,10 @@ python3 parse_litematic.py {info,rotate,plot,swap} [options]
 
 ```bash
 # Show detailed information about a schematic
-python3 parse_litematic.py info your_schematic.litematic
+python3 litematica-tools.py info your_schematic.litematic
 
 # Alternative syntax
-python3 parse_litematic.py info -i your_schematic.litematic
+python3 litematica-tools.py info -i your_schematic.litematic
 ```
 
 This will display:
@@ -53,42 +72,42 @@ This will display:
 
 ```bash
 # Rotate 90 degrees clockwise around origin (0, 0)
-python3 parse_litematic.py rotate your_schematic.litematic 90
+python3 litematica-tools.py rotate your_schematic.litematic 90
 
 # Rotate 45 degrees around a custom pivot point with smooth method
-python3 parse_litematic.py rotate your_schematic.litematic 45 -x 100 -z 200 -m nearest_half
+python3 litematica-tools.py rotate your_schematic.litematic 45 -x 100 -z 200 -m nearest_half
 
 # Rotate -90 degrees (counter-clockwise)
-python3 parse_litematic.py rotate your_schematic.litematic -90
+python3 litematica-tools.py rotate your_schematic.litematic -90
 
 # Alternative flag syntax with custom output
-python3 parse_litematic.py rotate -i input.litematic -r 180 -o output.litematic
+python3 litematica-tools.py rotate -i input.litematic -r 180 -o output.litematic
 ```
 
 ### Plot a Schematic
 
 ```bash
 # Display overhead visualization
-python3 parse_litematic.py plot your_schematic.litematic
+python3 litematica-tools.py plot your_schematic.litematic
 
 # Save to file without displaying
-python3 parse_litematic.py plot your_schematic.litematic --save --no-show
+python3 litematica-tools.py plot your_schematic.litematic --save --no-show
 
 # Show specific Y level
-python3 parse_litematic.py plot your_schematic.litematic -y 4 -o layer4.png --no-show
+python3 litematica-tools.py plot your_schematic.litematic -y 4 -o layer4.png --no-show
 ```
 
 ### Swap Block Types
 
 ```bash
 # Swap stone for dirt
-python3 parse_litematic.py swap structure.litematic stone dirt
+python3 litematica-tools.py swap structure.litematic stone dirt
 
 # Swap wool colors
-python3 parse_litematic.py swap structure.litematic orange_wool yellow_wool
+python3 litematica-tools.py swap structure.litematic orange_wool yellow_wool
 
 # Alternative flag syntax
-python3 parse_litematic.py swap -i structure.litematic -f stone -t dirt -o modified.litematic
+python3 litematica-tools.py swap -i structure.litematic -f stone -t dirt -o modified.litematic
 ```
 
 ## Commands
@@ -96,7 +115,7 @@ python3 parse_litematic.py swap -i structure.litematic -f stone -t dirt -o modif
 ### `info` - Display Schematic Information
 
 ```bash
-python3 parse_litematic.py info [options] <schematic_file>
+python3 litematica-tools.py info [options] <schematic_file>
 ```
 
 **Options:**
@@ -113,7 +132,7 @@ python3 parse_litematic.py info [options] <schematic_file>
 ### `rotate` - Rotate a Schematic
 
 ```bash
-python3 parse_litematic.py rotate [options] <schematic_file> <angle>
+python3 litematica-tools.py rotate [options] <schematic_file> <angle>
 ```
 
 **Options:**
@@ -136,7 +155,7 @@ python3 parse_litematic.py rotate [options] <schematic_file> <angle>
 ### `plot` - Visualize a Schematic
 
 ```bash
-python3 parse_litematic.py plot [options] <schematic_file>
+python3 litematica-tools.py plot [options] <schematic_file>
 ```
 
 **Options:**
@@ -157,7 +176,7 @@ python3 parse_litematic.py plot [options] <schematic_file>
 ### `swap` - Replace Block Types
 
 ```bash
-python3 parse_litematic.py swap [options] <schematic_file> <from_block> <to_block>
+python3 litematica-tools.py swap [options] <schematic_file> <from_block> <to_block>
 ```
 
 **Options:**
@@ -210,7 +229,7 @@ The tool automatically handles rotation for these block properties:
 ### Example 1: View schematic details
 
 ```bash
-python3 parse_litematic.py info my_house.litematic
+python3 litematica-tools.py info my_house.litematic
 ```
 
 **Output includes:**
@@ -223,32 +242,32 @@ python3 parse_litematic.py info my_house.litematic
 
 ```bash
 # Standard rotation (may have jagged edges)
-python3 parse_litematic.py rotate structure.litematic 45 -x 365 -z 354
+python3 litematica-tools.py rotate structure.litematic 45 -x 365 -z 354
 
 # Smooth rotation (recommended for angled rotations)
-python3 parse_litematic.py rotate structure.litematic 45 -x 365 -z 354 -m nearest_half
+python3 litematica-tools.py rotate structure.litematic 45 -x 365 -z 354 -m nearest_half
 ```
 
 ### Example 3: Visual comparison of rotations
 
 ```bash
 # Rotate and plot to compare methods
-python3 parse_litematic.py rotate building.litematic 45 -m round -o round.litematic
-python3 parse_litematic.py rotate building.litematic 45 -m nearest_half -o smooth.litematic
+python3 litematica-tools.py rotate building.litematic 45 -m round -o round.litematic
+python3 litematica-tools.py rotate building.litematic 45 -m nearest_half -o smooth.litematic
 
 # Create plots to compare
-python3 parse_litematic.py plot round.litematic -y 4 -o round_plot.png --no-show
-python3 parse_litematic.py plot smooth.litematic -y 4 -o smooth_plot.png --no-show
+python3 litematica-tools.py plot round.litematic -y 4 -o round_plot.png --no-show
+python3 litematica-tools.py plot smooth.litematic -y 4 -o smooth_plot.png --no-show
 ```
 
 ### Example 4: Swap block materials
 
 ```bash
 # Change all stone to smooth stone
-python3 parse_litematic.py swap castle.litematic stone smooth_stone
+python3 litematica-tools.py swap castle.litematic stone smooth_stone
 
 # Swap wool colors for different team
-python3 parse_litematic.py swap banner.litematic red_wool blue_wool
+python3 litematica-tools.py swap banner.litematic red_wool blue_wool
 ```
 
 ### Example 5: Rotate around center of hexagonal structure
@@ -257,15 +276,15 @@ If your structure's center point is at (365, 3, 354) (shown in `info` output):
 
 ```bash
 # Rotate 60° for hexagonal structure (360° / 6 = 60°)
-python3 parse_litematic.py rotate structure.litematic 60 -x 365 -z 354 -m nearest_half
+python3 litematica-tools.py rotate structure.litematic 60 -x 365 -z 354 -m nearest_half
 ```
 
 ### Example 6: Create multiple rotated versions
 
 ```bash
-python3 parse_litematic.py rotate tower.litematic 90 -o tower_90.litematic
-python3 parse_litematic.py rotate tower.litematic 180 -o tower_180.litematic
-python3 parse_litematic.py rotate tower.litematic 270 -o tower_270.litematic
+python3 litematica-tools.py rotate tower.litematic 90 -o tower_90.litematic
+python3 litematica-tools.py rotate tower.litematic 180 -o tower_180.litematic
+python3 litematica-tools.py rotate tower.litematic 270 -o tower_270.litematic
 ```
 
 ## Block Counting Features
