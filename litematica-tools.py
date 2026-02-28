@@ -6,6 +6,8 @@ import gzip
 import argparse
 import math
 import time
+import hashlib
+import json
 from typing import Any, Dict, List, Tuple, Set
 from pathlib import Path
 from collections import defaultdict
@@ -447,16 +449,34 @@ def rotate_schematic(data: Dict[str, Any], angle_degrees: int,
     return {root_name: root}
 
 
-def display_schematic_info(data: Dict[str, Any]):
+def display_schematic_info(data: Dict[str, Any], file_sha1: str = None, written_sha1: str = None,
+                           nbt_sha1_file: str = None, nbt_sha1_written: str = None):
     """Display information about the schematic"""
 
-    # Get the root data
-    root = data.get('', data)
+    # Get the root data (if root name is empty, data will already be the compound)
+    # If parse() returns {name: compound}, prefer the compound itself for display
+    if isinstance(data, dict) and len(data) == 1:
+        root = list(data.values())[0]
+    else:
+        root = data
 
     print("=" * 80)
     print("LITEMATICA SCHEMATIC FILE")
     print("=" * 80)
     print()
+
+    # Checksums (optional)
+    if file_sha1 or written_sha1 or nbt_sha1_file or nbt_sha1_written:
+        print("CHECKSUMS:")
+        if file_sha1:
+            print(f"  File (gzipped) SHA1: {file_sha1}")
+        if written_sha1:
+            print(f"  Writer (gzipped) SHA1: {written_sha1}")
+        if nbt_sha1_file:
+            print(f"  NBT (uncompressed) SHA1: {nbt_sha1_file}")
+        if nbt_sha1_written:
+            print(f"  Writer NBT (uncompressed) SHA1: {nbt_sha1_written}")
+        print()
 
     # Metadata
     if 'Metadata' in root:
@@ -554,6 +574,14 @@ def display_schematic_info(data: Dict[str, Any]):
                 block_states = region_data['BlockStates']
                 print(f"\n    Block States Data: {len(block_states)} longs")
 
+            # Region checksum (stable JSON of region data)
+            try:
+                region_json = json.dumps(region_data, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+                region_sha1 = hashlib.sha1(region_json.encode('utf-8')).hexdigest()
+                print(f"    Region SHA1: {region_sha1}")
+            except Exception:
+                pass
+
             if 'TileEntities' in region_data:
                 tile_entities = region_data['TileEntities']
                 print(f"    Tile Entities: {len(tile_entities)}")
@@ -571,6 +599,39 @@ def display_schematic_info(data: Dict[str, Any]):
         print()
 
     print("=" * 80)
+
+
+def find_nbt_diffs(a: Any, b: Any, path: str = '') -> List[str]:
+    """Recursively find differences between two NBT-parsed structures."""
+    diffs: List[str] = []
+
+    if type(a) != type(b):
+        diffs.append(f"{path}: type {type(a).__name__} != {type(b).__name__}")
+        return diffs
+
+    if isinstance(a, dict):
+        a_keys = set(a.keys())
+        b_keys = set(b.keys())
+        for key in sorted(a_keys - b_keys):
+            diffs.append(f"{path}/{key}: present in original, missing in written")
+        for key in sorted(b_keys - a_keys):
+            diffs.append(f"{path}/{key}: missing in original, present in written")
+        for key in sorted(a_keys & b_keys):
+            diffs.extend(find_nbt_diffs(a[key], b[key], f"{path}/{key}"))
+
+    elif isinstance(a, list):
+        if len(a) != len(b):
+            diffs.append(f"{path}: list length {len(a)} != {len(b)}")
+        min_len = min(len(a), len(b))
+        for i in range(min_len):
+            diffs.extend(find_nbt_diffs(a[i], b[i], f"{path}[{i}]"))
+
+    else:
+        # Primitives
+        if a != b:
+            diffs.append(f"{path}: {a!r} != {b!r}")
+
+    return diffs
 
 
 def plot_schematic_2d(data: Dict[str, Any], output_path: str = None, y_level: int = None, show: bool = True):
@@ -677,8 +738,55 @@ def cmd_info(args):
     print()
 
     try:
+        # Read raw file bytes to compute checksum
+        raw_bytes = input_path.read_bytes()
+        file_sha1 = hashlib.sha1(raw_bytes).hexdigest()
+
+        # Compute SHA1 of uncompressed NBT bytes from the file
+        try:
+            nbt_uncompressed = gzip.decompress(raw_bytes)
+            nbt_sha1_file = hashlib.sha1(nbt_uncompressed).hexdigest()
+        except Exception:
+            nbt_sha1_file = None
+
         data = parse_litematic(str(input_path))
-        display_schematic_info(data)
+
+        # Re-serialize using the writer to compute writer-produced checksums
+        try:
+            root_name = list(data.keys())[0]
+            root_data = data[root_name]
+            writer = NBTWriter()
+            nbt_bytes = writer.build(root_name, root_data)
+            nbt_sha1_written = hashlib.sha1(nbt_bytes).hexdigest()
+            gzipped_bytes = gzip.compress(nbt_bytes)
+            written_sha1 = hashlib.sha1(gzipped_bytes).hexdigest()
+        except Exception:
+            written_sha1 = None
+            nbt_sha1_written = None
+
+        display_schematic_info(data, file_sha1=file_sha1, written_sha1=written_sha1,
+                               nbt_sha1_file=nbt_sha1_file, nbt_sha1_written=nbt_sha1_written)
+
+        # If requested, compare parsed structure vs writer-produced structure
+        if getattr(args, 'diff', False):
+            try:
+                # Parse writer-produced NBT bytes into a structure
+                rebuilt = NBTParser(nbt_bytes).parse()
+                original = data
+
+                # Compare the two structures
+                diffs = find_nbt_diffs(original, rebuilt, path='')
+
+                print('\nSTRUCTURAL DIFFS:')
+                if not diffs:
+                    print('  No differences found between parsed and written NBT structures.')
+                else:
+                    for i, d in enumerate(diffs[:200]):
+                        print(f'  {i+1}. {d}')
+                    if len(diffs) > 200:
+                        print(f'  ... and {len(diffs)-200} more differences')
+            except Exception as e:
+                print(f"Error computing diffs: {e}")
         return 0
 
     except Exception as e:
@@ -903,6 +1011,7 @@ Examples:
         """
     )
     info_parser.add_argument('input', nargs='?', help='Input litematic schematic file')
+    info_parser.add_argument('--diff', action='store_true', help='Compare parsed NBT vs writer output and show differences')
     info_parser.add_argument('-i', '--input-file', dest='input_alt', help='Input litematic schematic file (alternative syntax)')
     info_parser.set_defaults(func=cmd_info)
 
